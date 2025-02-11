@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Egg, Volume2, VolumeX, ArrowLeft, Heart } from 'lucide-react';
+import { Egg, Volume2, VolumeX, Heart } from 'lucide-react';
 
 type EggType = {
   name: string;
@@ -53,11 +53,31 @@ function App() {
   const [isMuted, setIsMuted] = useState(false);
   const [progress, setProgress] = useState(0);
   const [showConfetti, setShowConfetti] = useState(false);
+  const [hasAudioPermission, setHasAudioPermission] = useState<boolean | null>(null);
   const [animalPositions, setAnimalPositions] = useState({
     chick: -10,
     bunny: 110,
     hen: -20
   });
+
+  // Request audio permission on mount
+  useEffect(() => {
+    const requestAudioPermission = async () => {
+      try {
+        // Create a temporary audio context to request permission
+        const audioContext = new (window.AudioContext || (window as any).webkitAudioContext)();
+        await audioContext.resume();
+        setHasAudioPermission(true);
+        setIsMuted(false);
+      } catch (error) {
+        console.error('Audio permission denied:', error);
+        setHasAudioPermission(false);
+        setIsMuted(true);
+      }
+    };
+
+    requestAudioPermission();
+  }, []);
 
   useEffect(() => {
     let interval: number | undefined;
@@ -86,17 +106,20 @@ function App() {
       setIsActive(false);
       setMessage("Ta-da! Your egg is ready, chef! Crack me open with love! 😘");
       setShowConfetti(true);
-      if (!isMuted) {
+      
+      // Play sound if not muted and we have permission
+      if (!isMuted && hasAudioPermission) {
         const audio = new Audio('https://assets.mixkit.co/active_storage/sfx/2571/2571-preview.mp3');
-        audio.play();
+        audio.play().catch(error => console.error('Error playing audio:', error));
       }
+      
       setTimeout(() => setShowConfetti(false), 3000);
     }
 
     return () => {
       if (interval) clearInterval(interval);
     };
-  }, [isActive, timeLeft, selectedType, isMuted]);
+  }, [isActive, timeLeft, selectedType, isMuted, hasAudioPermission]);
 
   const startTimer = (type: EggType) => {
     setSelectedType(type);
@@ -127,6 +150,20 @@ function App() {
     return 'text-yellow-400';
   };
 
+  // Show audio permission request if we don't have an answer yet
+  if (hasAudioPermission === null) {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-blue-50 to-pink-50 flex items-center justify-center p-4">
+        <div className="bg-white rounded-2xl shadow-xl p-8 max-w-md w-full text-center">
+          <Egg className="w-16 h-16 text-yellow-400 mx-auto mb-4 animate-bounce" />
+          <h1 className="text-2xl font-bold text-gray-800 mb-4">Welcome to Eggsy!</h1>
+          <p className="text-gray-600 mb-6">Please allow audio notifications so I can let you know when your egg is ready! 🔔</p>
+          <div className="animate-pulse text-gray-500">Requesting permission...</div>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="min-h-screen bg-gradient-to-br from-blue-50 to-pink-50 flex items-center justify-center p-4">
       <div className="bg-white rounded-2xl shadow-xl p-8 max-w-md w-full relative overflow-hidden">
@@ -145,9 +182,16 @@ function App() {
           </h1>
           <button
             onClick={() => setIsMuted(!isMuted)}
-            className="text-gray-500 hover:text-gray-700 transition-colors"
+            className="text-gray-500 hover:text-gray-700 transition-colors relative group"
+            title={isMuted ? "Unmute" : "Mute"}
           >
             {isMuted ? <VolumeX className="w-6 h-6" /> : <Volume2 className="w-6 h-6" />}
+            {!hasAudioPermission && (
+              <span className="absolute -top-2 -right-2 w-3 h-3 bg-red-500 rounded-full" />
+            )}
+            <span className="absolute bottom-full left-1/2 transform -translate-x-1/2 mb-2 px-2 py-1 text-xs text-white bg-gray-800 rounded opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap">
+              {hasAudioPermission ? (isMuted ? "Unmute" : "Mute") : "Audio permission denied"}
+            </span>
           </button>
         </div>
 
